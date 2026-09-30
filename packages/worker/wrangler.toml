@@ -33,5 +33,5 @@ simple = { limit = 10, period = 60 }
 [[d1_databases]]
 binding = "DB"
 database_name = "sudoku-race"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "436ee973-0de3-4021-a573-3f06a90e9d0d"
 migrations_dir = "migrations"
