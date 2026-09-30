@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": [
+      "ES2022"
+    ],
+    "types": [
+      "@cloudflare/workers-types/2023-07-01"
+    ]
+  },
+  "include": [
+    "src"
+  ]
+}

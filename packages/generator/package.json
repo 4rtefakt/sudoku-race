@@ -1,0 +1,12 @@
+{
+  "name": "@sudoku-race/generator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "gen": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@sudoku-race/shared": "*"
+  }
+}

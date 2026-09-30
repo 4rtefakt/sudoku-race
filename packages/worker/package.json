@@ -1,0 +1,20 @@
+{
+  "name": "@sudoku-race/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:local": "wrangler d1 migrations apply DB --local && wrangler d1 execute DB --local --file seed/puzzles.sql",
+    "db:migrate": "wrangler d1 migrations apply DB --remote",
+    "db:seed": "wrangler d1 execute DB --remote --file seed/puzzles.sql"
+  },
+  "dependencies": {
+    "@sudoku-race/shared": "*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250917.0",
+    "wrangler": "^4.40.0"
+  }
+}

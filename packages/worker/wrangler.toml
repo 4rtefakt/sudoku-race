@@ -1,0 +1,37 @@
+name = "sudoku-race"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+# Garde aussi sudoku-race.<compte>.workers.dev.
+workers_dev = true
+
+# Domaines : le site (assets statiques du front) et l'API sont servis par ce Worker.
+routes = [
+  { pattern = "sudoku-race.app", custom_domain = true },
+  { pattern = "www.sudoku-race.app", custom_domain = true },
+]
+
+# Front React construit par `npm run build:web` (VITE_API_URL vide : même origine).
+[assets]
+directory = "../web/dist"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[observability]
+enabled = true
+
+[vars]
+# Origine autorisée pour les appels API (CORS).
+ALLOWED_ORIGIN = "*"
+
+# Création de profils anonymes : 10 par minute et par adresse IP.
+[[ratelimits]]
+name = "CREATE_LIMITER"
+namespace_id = "1701"
+simple = { limit = 10, period = 60 }
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sudoku-race"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"

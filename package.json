@@ -1,0 +1,28 @@
+{
+  "name": "sudoku-race",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p packages/shared && tsc -p packages/generator && tsc -p packages/worker && tsc -p packages/web",
+    "test": "vitest run",
+    "gen": "npm run --workspace @sudoku-race/generator gen --",
+    "dev:worker": "npm run --workspace @sudoku-race/worker dev",
+    "dev:web": "npm run --workspace @sudoku-race/web dev",
+    "build:web": "npm run --workspace @sudoku-race/web build",
+    "deploy:worker": "npm run --workspace @sudoku-race/worker deploy",
+    "deploy": "npm run build:web && npm run deploy:worker",
+    "db:local": "npm run --workspace @sudoku-race/worker db:local",
+    "db:migrate": "npm run --workspace @sudoku-race/worker db:migrate",
+    "db:seed": "npm run --workspace @sudoku-race/worker db:seed"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "playwright-core": "^1.55.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
