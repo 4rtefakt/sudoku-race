@@ -63,20 +63,20 @@ if (future) expect((await api("GET", `/api/puzzle/${future}`, { token: A.secret 
 // partie : la grille n'arrive qu'au départ du chrono
 const before = await api("GET", `/api/puzzle/${today}`, { token: A.secret });
 expect(before.status === 200 && before.data.grid === null && before.data.startedAt === null, "grille cachée avant le départ");
-expect(!JSON.stringify(before.data).includes(solutions.get(today).solution), "jamais de solution");
+expect(!JSON.stringify(before.data).includes(solutions.get(today).solution), "pas de solution avant le départ");
 const st = await api("POST", "/api/start", { token: A.secret, body: { day: today } });
-expect(st.data.grid === solutions.get(today).grid, "grille au départ");
+expect(st.data.grid === solutions.get(today).grid && st.data.solution === solutions.get(today).solution, "grille et solution au départ");
 await new Promise((r) => setTimeout(r, 1100));
 const st2 = await api("POST", "/api/start", { token: A.secret, body: { day: today } });
 expect(st2.data.startedAt === st.data.startedAt, "reprendre garde le départ");
 expect((await api("POST", "/api/finish", { token: B.secret, body: { day: today, grid: solutions.get(today).solution, mistakes: 0 } })).status === 409, "finir sans avoir commencé");
 expect((await api("POST", "/api/finish", { token: A.secret, body: { day: today, grid: solutions.get(today).grid, mistakes: 0 } })).status === 422, "grille fausse");
-const fin = await api("POST", "/api/finish", { token: A.secret, body: { day: today, grid: solutions.get(today).solution, mistakes: 2 } });
+const fin = await api("POST", "/api/finish", { token: A.secret, body: { day: today, grid: solutions.get(today).solution, mistakes: 2, wrong: 1 } });
 expect(fin.status === 200 && !fin.data.already, "fin de partie");
-expect(fin.data.score.timeMs >= 21_000 && fin.data.score.mistakes === 2, `temps avec pénalités ${fin.data.score.timeMs}`);
+expect(fin.data.score.timeMs >= 51_000 && fin.data.score.mistakes === 2 && fin.data.score.wrong === 1, `temps avec pénalités ${fin.data.score.timeMs}`);
 const again = await api("POST", "/api/finish", { token: A.secret, body: { day: today, grid: solutions.get(today).solution, mistakes: 0 } });
 expect(again.data.already && again.data.score.timeMs === fin.data.score.timeMs, "un seul score par jour");
-log("A finit en", fin.data.score.timeMs, "ms (2 erreurs)");
+log("A finit en", fin.data.score.timeMs, "ms (2 doublons, 1 chiffre faux)");
 
 // B joue un jour passé, plus vite
 const past = days.data.days.at(-1).day;

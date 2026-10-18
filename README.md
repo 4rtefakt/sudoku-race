@@ -91,4 +91,9 @@ déploiement), base D1 `sudoku-race` liée sous le nom `DB`. Le front est
 construit sans `VITE_API_URL` : il appelle `/api` sur sa propre origine.
 
 Le seed est public, solutions comprises : ce n'est pas pire qu'une appli de
-résolution, et le classement ne réunit que des amis.
+résolution, et le classement ne réunit que des amis. Pour la même raison, la
+solution est envoyée au client avec la grille, pour que la vérification
+automatique signale aussi les chiffres faux.
+
+La migration `0002_wrong.sql` (colonne `scores.wrong`) doit être appliquée
+(`npm run db:migrate`) avant de déployer le Worker qui l'utilise.

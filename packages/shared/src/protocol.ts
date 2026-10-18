@@ -26,13 +26,17 @@ export interface UpdatePlayerRequest {
 
 export interface Score {
   timeMs: number;
+  /** doublons signalés (+10 s chacun) */
   mistakes: number;
+  /** chiffres signalés faux par rapport à la solution, sans être des doublons (+30 s chacun) */
+  wrong: number;
   finishedAt: number;
 }
 
 /**
- * GET /api/puzzle/:day. La grille n'est envoyée qu'une fois le chrono lancé
- * (POST /api/start), la solution jamais.
+ * GET /api/puzzle/:day. La grille et sa solution ne sont envoyées qu'une
+ * fois le chrono lancé (POST /api/start) ; la solution sert à la
+ * vérification automatique.
  */
 export interface PuzzleInfo {
   day: string;
@@ -42,6 +46,7 @@ export interface PuzzleInfo {
   now: number;
   startedAt: number | null;
   grid: string | null;
+  solution: string | null;
   score: Score | null;
 }
 
@@ -55,12 +60,14 @@ export interface StartResponse {
   now: number;
   startedAt: number;
   grid: string;
+  solution: string;
 }
 
 export interface FinishRequest {
   day: string;
   grid: string;
   mistakes: number;
+  wrong?: number;
 }
 
 export interface FinishResponse {
@@ -76,6 +83,7 @@ export interface BoardEntry {
   rank: number;
   timeMs: number;
   mistakes: number;
+  wrong: number;
   finishedAt: number;
 }
 

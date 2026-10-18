@@ -53,20 +53,22 @@ Durable Object ni de WebSocket ici : chacun joue seul, on compare les temps.
 ## Jours, chrono, score
 
 - Clé du jour : date à Paris (`AAAA-MM-JJ`). Un jour futur n'est jamais servi.
-- `GET /api/puzzle/:day` ne renvoie la grille qu'une fois le chrono lancé ;
-  `POST /api/start` fixe `started_at` au premier appel (reprendre ne le change
-  pas) et renvoie la grille. La solution ne quitte jamais le serveur.
-- `POST /api/finish {day, grid, mistakes}` : grille == solution, puis
-  `time_ms = maintenant − started_at + 10 000 × mistakes`, enregistré une seule
-  fois par joueur et par jour. Le temps est celui de l'horloge : fermer la page
-  n'arrête pas le chrono.
-- Erreurs (déclarées par le client) : la solution étant inconnue du client, une
-  erreur est un chiffre posé en doublon dans sa ligne, sa colonne ou son carré.
-  Elles ne comptent que si la vérification automatique est active (c'est le prix
-  de l'aide) ; activer la vérification compte les doublons déjà présents, et
+- `GET /api/puzzle/:day` ne renvoie la grille et sa solution qu'une fois le
+  chrono lancé ; `POST /api/start` fixe `started_at` au premier appel (reprendre
+  ne le change pas) et renvoie la grille et la solution (pour la vérification
+  automatique ; le seed est public de toute façon).
+- `POST /api/finish {day, grid, mistakes, wrong}` : grille == solution, puis
+  `time_ms = maintenant − started_at + 10 000 × mistakes + 30 000 × wrong`,
+  enregistré une seule fois par joueur et par jour. Le temps est celui de
+  l'horloge : fermer la page n'arrête pas le chrono.
+- Erreurs (déclarées par le client) : `mistakes` compte les chiffres posés en
+  doublon dans leur ligne, colonne ou carré (+10 s), `wrong` les chiffres qui ne
+  sont pas ceux de la solution sans être en doublon (+30 s) ; un chiffre à la
+  fois en doublon et faux ne coûte que 10 s. Elles ne comptent que si la
+  vérification automatique est active (c'est le prix de l'aide) ; activer la
+  vérification, annuler ou rétablir compte les erreurs qui apparaissent, et
   chaque (case, chiffre) ne compte qu'une fois. Une grille pleine sans doublon,
-  chiffres donnés conservés, est forcément la solution (unicité) : le client sait
-  qu'il a fini sans connaître la solution.
+  chiffres donnés conservés, est forcément la solution (unicité).
 - Jours passés : jouables à tout moment, le score compte dans le classement de ce
   jour-là.
 - Saison hebdomadaire (lundi → dimanche) : chaque jour, 3 points au plus rapide
@@ -76,7 +78,8 @@ Durable Object ni de WebSocket ici : chacun joue seul, on compare les temps.
 ## Schéma D1
 
 Voir `packages/worker/migrations/0001_init.sql` : `players`, `friendships`,
-`puzzles`, `attempts` (départ du chrono), `scores`, conformes à la spec.
+`puzzles`, `attempts` (départ du chrono), `scores`, conformes à la spec ;
+`0002_wrong.sql` ajoute `scores.wrong` (chiffres faux signalés).
 
 ## API
 
@@ -86,8 +89,8 @@ Voir `packages/worker/migrations/0001_init.sql` : `players`, `friendships`,
 | GET | /api/player | mon profil (pseudo, code ami) |
 | PATCH | /api/player | changer de pseudo (20 caractères au plus) |
 | GET | /api/days | jours jouables et mon état pour chacun (bandeau des archives) |
-| GET | /api/puzzle/:day | difficulté, départ, score ; grille si commencée |
-| POST | /api/start | lancer le chrono, recevoir la grille |
+| GET | /api/puzzle/:day | difficulté, départ, score ; grille et solution si commencée |
+| POST | /api/start | lancer le chrono, recevoir la grille et la solution |
 | POST | /api/finish | valider et enregistrer le temps |
 | GET | /api/board/:day | moi + amis, triés par temps ; amis sans score à part |
 | GET | /api/season/:day | points de la semaine qui contient ce jour |
@@ -102,11 +105,16 @@ Erreurs : `{ "error": "unauthorized" | "bad_day" | "not_yet" | "not_found" | "no
 - `/` grille du jour, `/<jour>` un jour passé, `/<jour>/vs/<code>` duel,
   `/add/<code>`, `/friends`, `/settings`, `/restore#<secret>`.
 - Avant le départ, grille masquée et bouton « Découvrir la grille ». En jeu :
-  chrono (recalé sur l'heure du serveur), notes, annuler, effacer, surlignage
-  de la ligne/colonne/carré et des chiffres identiques, vérification automatique
-  optionnelle, pavé de chiffres avec le nombre restant ; clavier (chiffres,
-  Maj+chiffre ou mode N pour les notes, flèches, retour arrière, Ctrl+Z).
-  La partie en cours est gardée en `localStorage` par jour.
+  chrono (recalé sur l'heure du serveur), notes, annuler, rétablir, effacer,
+  surlignage de la ligne/colonne/carré et des chiffres identiques, vérification
+  automatique optionnelle (doublons et chiffres faux), pavé de chiffres avec le
+  nombre restant ; clavier (chiffres, Maj+chiffre ou mode N pour les notes,
+  flèches, retour arrière, Ctrl+Z, Ctrl+Y).
+  La partie en cours est gardée en `localStorage` par jour, historique
+  d'annulation et de rétablissement compris (300 états au plus, effacé une fois
+  la grille finie) : on peut annuler en reprenant la grille le lendemain.
+- Réglages : vérification automatique par défaut, grosses notes (activées
+  d'office pour le pseudo « Pangolin distrait » tant qu'aucun choix n'est fait).
 - Classement et saison à droite sur grand écran, sous la grille sur mobile ;
   bandeau des jours en haut (difficulté en couleur, temps des grilles finies).
 - Textes dans `packages/web/src/i18n/{fr,en}.ts` ; langue du navigateur par

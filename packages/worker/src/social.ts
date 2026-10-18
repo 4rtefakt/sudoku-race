@@ -20,18 +20,18 @@ export async function board(env: Env, me: Player, day: string): Promise<Response
   if (!isDayKey(day)) return error(env, "bad_day", 400);
   const { results } = await env.DB.prepare(
     `${CIRCLE}
-     SELECT p.id, p.pseudo, p.friend_code, s.time_ms, s.mistakes, s.finished_at, a.started_at
+     SELECT p.id, p.pseudo, p.friend_code, s.time_ms, s.mistakes, s.wrong, s.finished_at, a.started_at
        FROM circle c
        JOIN players p ON p.id = c.id
        LEFT JOIN scores s ON s.player_id = p.id AND s.day = ?2
        LEFT JOIN attempts a ON a.player_id = p.id AND a.day = ?2`,
   )
     .bind(me.id, day)
-    .all<{ id: number; pseudo: string; friend_code: string; time_ms: number | null; mistakes: number | null; finished_at: number | null; started_at: number | null }>();
+    .all<{ id: number; pseudo: string; friend_code: string; time_ms: number | null; mistakes: number | null; wrong: number | null; finished_at: number | null; started_at: number | null }>();
 
   const done = results.filter((r) => r.time_ms !== null);
   const entries = rankByTime(
-    done.map((r) => ({ pseudo: r.pseudo, friendCode: r.friend_code, me: r.id === me.id, timeMs: r.time_ms!, mistakes: r.mistakes!, finishedAt: r.finished_at! })),
+    done.map((r) => ({ pseudo: r.pseudo, friendCode: r.friend_code, me: r.id === me.id, timeMs: r.time_ms!, mistakes: r.mistakes!, wrong: r.wrong!, finishedAt: r.finished_at! })),
   );
   const waiting = results
     .filter((r) => r.time_ms === null)

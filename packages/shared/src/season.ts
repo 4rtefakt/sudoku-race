@@ -4,7 +4,13 @@
  * 1 à tous les autres qui ont fini. Chacun voit la saison de son propre
  * cercle (lui + ses amis), les amitiés étant à sens unique.
  */
+/** Pénalités de la vérification automatique : doublon, chiffre qui n'est pas celui de la solution. */
 export const PENALTY_MS = 10_000;
+export const WRONG_PENALTY_MS = 30_000;
+
+export function penaltyMs(mistakes: number, wrong: number): number {
+  return PENALTY_MS * mistakes + WRONG_PENALTY_MS * wrong;
+}
 const POINTS = [3, 2] as const;
 
 export function pointsForRank(rank: number): number {

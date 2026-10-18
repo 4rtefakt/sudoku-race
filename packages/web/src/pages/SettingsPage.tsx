@@ -3,7 +3,7 @@ import { isSecret, MAX_PSEUDO_LENGTH, sanitizePseudo } from "@sudoku-race/shared
 import { useT } from "../i18n/index.js";
 import { adoptSecret, api, ApiError, currentSecret, links } from "../lib/api.js";
 import { copyText } from "../lib/share.js";
-import { getCheck, setCheck } from "../lib/storage.js";
+import { getBigNotes, getCheck, setBigNotes, setCheck } from "../lib/storage.js";
 import { useIdentity } from "../hooks/useIdentity.js";
 import { LangToggle, ThemeToggle } from "../components/ThemeToggle.js";
 import { QrCode } from "../components/QrCode.js";
@@ -22,6 +22,7 @@ export function SettingsPage() {
   const [pseudo, setPseudo] = useState(profile.pseudo);
   const [pseudoMsg, setPseudoMsg] = useState<{ text: string; error: boolean } | null>(null);
   const [check, setCheckState] = useState(getCheck);
+  const [bigNotes, setBigNotesState] = useState(() => getBigNotes(profile.pseudo));
   const [showSecret, setShowSecret] = useState(false);
   const [copied, setCopied] = useState(false);
   const [restore, setRestore] = useState("");
@@ -116,6 +117,20 @@ export function SettingsPage() {
           <span>
             <strong>{t.checkDefault}</strong>
             <span className="muted small">{t.checkDefaultHint}</span>
+          </span>
+        </label>
+        <label className="switch">
+          <input
+            type="checkbox"
+            checked={bigNotes}
+            onChange={(e) => {
+              setBigNotesState(e.target.checked);
+              setBigNotes(e.target.checked);
+            }}
+          />
+          <span>
+            <strong>{t.bigNotes}</strong>
+            <span className="muted small">{t.bigNotesHint}</span>
           </span>
         </label>
       </section>

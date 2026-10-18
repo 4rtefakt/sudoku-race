@@ -30,6 +30,8 @@ function watch(page, who) {
   page.on("console", (m) => m.type() === "error" && !m.text().includes("ERR_CERT") && !m.text().includes("fonts.g") && console.log(`console ${who}:`, m.text()));
 }
 const cell = (page, i) => page.locator(".sudoku .s-cell").nth(i);
+const box = (i) => Math.floor(i / 27) * 3 + Math.floor((i % 9) / 3);
+const peer = (i, j) => i !== j && (Math.floor(i / 9) === Math.floor(j / 9) || i % 9 === j % 9 || box(i) === box(j));
 async function type(page, i, d) {
   await cell(page, i).click();
   await page.keyboard.press(String(d));
@@ -61,15 +63,37 @@ try {
   await alice.keyboard.press("Control+z");
   if ((await cell(alice, e0).locator(".s-notes span").allTextContents()).join("") !== "1") fail("annuler une note");
 
-  // vérification automatique : un doublon compte 10 s
+  // vérification automatique : un doublon compte 10 s (même s'il est aussi faux), un chiffre faux 30 s
   const clash = Number(grid[[...grid].findIndex((ch, i) => ch !== "0" && Math.floor(i / 9) === Math.floor(e1 / 9))]);
   await alice.click(".tools .tool:has-text('Vérif. auto')");
   await type(alice, e1, clash);
   await alice.waitForSelector(".s-cell.conflict");
-  if (!(await alice.locator(".penalty").textContent()).includes("+10 s")) fail("pénalité affichée");
+  if (!(await alice.locator(".penalty").textContent()).includes("+10 s")) fail("pénalité d'un doublon");
   await alice.keyboard.press("Backspace");
+  const wrong = [1, 2, 3, 4, 5, 6, 7, 8, 9].find((d) => d !== Number(solution[e1]) && ![...grid].some((ch, j) => peer(e1, j) && ch === String(d)));
+  let penalty = 10;
+  if (wrong) {
+    await type(alice, e1, wrong);
+    await alice.waitForFunction(() => document.querySelector(".penalty")?.textContent?.includes("+40 s"));
+    if (!(await cell(alice, e1).getAttribute("class")).includes("conflict")) fail("chiffre faux signalé");
+    await alice.keyboard.press("Backspace");
+    penalty = 40;
+  }
+
+  // annuler, rétablir, et l'historique survit au rechargement
+  await alice.keyboard.press("Control+z");
+  if ((await cell(alice, e1).textContent()) !== String(wrong ?? clash)) fail("annuler l'effacement");
+  await alice.click(".tools .tool:has-text('Rétablir')");
+  if ((await cell(alice, e1).locator(".s-digit").count()) !== 0) fail("rétablir l'effacement");
+  await alice.reload();
+  await alice.waitForSelector(".keypad");
+  await alice.keyboard.press("Control+z");
+  if ((await cell(alice, e1).textContent()) !== String(wrong ?? clash)) fail("annuler après rechargement");
+  await alice.keyboard.press("Control+y");
+  if ((await cell(alice, e1).locator(".s-digit").count()) !== 0) fail("rétablir après rechargement");
+  if (!(await alice.locator(".penalty").textContent()).includes(`+${penalty} s`)) fail("pas de pénalité en plus en annulant ou rétablissant");
   await alice.click(".tools .tool:has-text('Vérif. auto')");
-  log("Alice : notes, annulation et vérification OK (1 erreur)");
+  log(`Alice : notes, annuler/rétablir (après rechargement) et vérification OK (+${penalty} s)`);
 
   // remplissage ; la dernière case au pavé
   for (const i of empties.slice(0, -1)) await type(alice, i, solution[i]);
@@ -79,7 +103,7 @@ try {
   await alice.click(`.keypad .key >> nth=${Number(solution[last]) - 1}`);
   await alice.waitForSelector(".result", { timeout: 10000 });
   const timeA = (await alice.locator(".result-time").textContent()).trim();
-  if (!(await alice.locator(".result").textContent()).includes("10 s de pénalité")) fail("pénalité dans le résultat");
+  if (!(await alice.locator(".result").textContent()).includes(`${penalty} s de pénalité`)) fail("pénalité dans le résultat");
   await alice.waitForSelector(".ranking li.me");
   await alice.screenshot({ path: `${shots}/a-solved.png`, fullPage: true });
   log("Alice : grille finie en", timeA);

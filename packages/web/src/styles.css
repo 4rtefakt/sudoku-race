@@ -209,6 +209,7 @@ footer { margin: 2.5rem auto 1.5rem; text-align: center; padding: 0 1rem; }
 .s-cell.conflict.selected .s-digit { color: #9b1c12; }
 .s-notes { position: absolute; inset: 1px; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); place-items: center; font-size: calc(var(--cell) * 0.25); line-height: 1; color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
 .s-notes .hl { color: var(--accent); }
+.big-notes .s-notes { inset: 0; font-size: calc(var(--cell) * 0.32); font-weight: 800; color: var(--ink); }
 .s-cell.selected .s-notes { color: #3d434b; }
 .sudoku.solved .s-cell { background: var(--ok-soft); }
 .sudoku.solved .s-digit { color: var(--ink); }
@@ -223,7 +224,7 @@ footer { margin: 2.5rem auto 1.5rem; text-align: center; padding: 0 1rem; }
 .game-status .error button { margin-left: 0.4rem; min-height: 32px; padding: 0.2rem 0.7rem; }
 
 /* Outils et pavé */
-.tools { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; }
+.tools { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.4rem; }
 .tool { flex-direction: column; gap: 0.15rem; padding: 0.4rem 0.2rem; min-height: 56px; font-size: 0.78rem; color: var(--muted); }
 .tool:hover:not(:disabled) { color: var(--ink); }
 .tool.on { background: var(--accent-soft); border-color: var(--accent); color: var(--ink); font-weight: 700; }

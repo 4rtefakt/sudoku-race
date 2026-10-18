@@ -23,7 +23,7 @@ export function Board({ board, hasFriends }: { board: BoardResponse | null; hasF
                     {e.pseudo}
                     {e.me && <span className="tag">{t.you}</span>}
                   </span>
-                  {e.mistakes > 0 && <span className="muted small">{t.mistakesShort(e.mistakes)}</span>}
+                  {e.mistakes + e.wrong > 0 && <span className="muted small">{t.mistakesShort(e.mistakes + e.wrong)}</span>}
                   <span className="time">{formatTime(e.timeMs)}</span>
                 </li>
               ))}

@@ -12,15 +12,17 @@ interface Props {
   solved?: boolean;
   /** grille masquée (avant le départ) */
   hidden?: boolean;
+  /** notes plus grosses et plus contrastées (réglage) */
+  bigNotes?: boolean;
 }
 
 const NOTE_POS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-export function SudokuGrid({ givens, values, notes, selected, conflicts, onSelect, solved, hidden }: Props) {
+export function SudokuGrid({ givens, values, notes, selected, conflicts, onSelect, solved, hidden, bigNotes }: Props) {
   const t = useT();
   const sel = selected ?? -1;
   const selValue = sel >= 0 ? values[sel]! : 0;
-  const cls = ["sudoku", solved ? "solved" : "", hidden ? "hidden" : "", onSelect ? "interactive" : ""].filter(Boolean).join(" ");
+  const cls = ["sudoku", solved ? "solved" : "", hidden ? "hidden" : "", bigNotes ? "big-notes" : "", onSelect ? "interactive" : ""].filter(Boolean).join(" ");
 
   return (
     <div className={cls} role="grid" aria-label={t.gridLabel} aria-readonly={!onSelect || undefined} id="grid" tabIndex={-1}>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { dayKey, isComplete, puzzleNumber, type AddFriendResponse, type BoardResponse, type Score } from "@sudoku-race/shared";
+import { dayKey, isComplete, penaltyMs, puzzleNumber, type AddFriendResponse, type BoardResponse, type Score } from "@sudoku-race/shared";
 import { useT } from "../i18n/index.js";
 import { api, ApiError, links } from "../lib/api.js";
 import { formatDay, formatShortDay, formatTime } from "../lib/format.js";
@@ -39,6 +39,7 @@ export function DayPage({ day: dayParam, duel }: { day?: string; duel?: string }
 
 interface Started {
   grid: string;
+  solution: string;
   startedAt: number;
   offset: number;
 }
@@ -79,7 +80,7 @@ function PuzzleArea({ day, today, duel, onProgress }: { day: string; today: stri
     setStartError(false);
     try {
       const r = await api.start(day);
-      setStarted({ grid: r.grid, startedAt: r.startedAt, offset: r.now - Date.now() });
+      setStarted({ grid: r.grid, solution: r.solution, startedAt: r.startedAt, offset: r.now - Date.now() });
       onProgress();
     } catch {
       setStartError(true);
@@ -91,6 +92,7 @@ function PuzzleArea({ day, today, duel, onProgress }: { day: string; today: stri
   const p = info.data;
   const score = solved?.score ?? p?.score ?? null;
   const givens = started?.grid ?? p?.grid ?? null;
+  const solution = started?.solution ?? p?.solution ?? null;
   const hasFriends = !!board.data && board.data.entries.length + board.data.waiting.length > 1;
 
   let main: React.ReactNode;
@@ -120,7 +122,7 @@ function PuzzleArea({ day, today, duel, onProgress }: { day: string; today: stri
   } else if (givens) {
     const startedAt = started?.startedAt ?? p.startedAt!;
     const offset = started?.offset ?? p.offset;
-    main = <Game day={day} givens={givens} startedAt={startedAt} offset={offset} onSolved={onSolved} />;
+    main = <Game day={day} givens={givens} solution={solution} startedAt={startedAt} offset={offset} onSolved={onSolved} />;
   } else {
     main = (
       <div className="intro">
@@ -207,7 +209,7 @@ function Result({ day, difficulty, score, fresh, board }: { day: string; difficu
       {fresh && <h2>{t.solvedTitle}</h2>}
       <p className="result-label muted">{t.yourTime}</p>
       <p className="result-time">{time}</p>
-      {score.mistakes > 0 && <p className="muted small">{t.withPenalty(score.mistakes)}</p>}
+      {score.mistakes + score.wrong > 0 && <p className="muted small">{t.withPenalty(penaltyMs(score.mistakes, score.wrong), score.mistakes + score.wrong)}</p>}
       {me && board && <p className="result-rank">{t.rankAmong(me.rank, board.entries.length)}</p>}
       <div className="result-actions">
         <button type="button" className="primary icon-btn" onClick={() => void share(t.challengeText(n, time), links.duel(day, profile.friendCode))}>

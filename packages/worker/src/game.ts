@@ -2,7 +2,7 @@ import {
   dayKey,
   isDayKey,
   isGridString,
-  PENALTY_MS,
+  penaltyMs,
   type DayStatus,
   type DaysResponse,
   type Difficulty,
@@ -29,10 +29,11 @@ interface PuzzleRow {
 interface ScoreRow {
   time_ms: number;
   mistakes: number;
+  wrong: number;
   finished_at: number;
 }
 
-const toScore = (s: ScoreRow): Score => ({ timeMs: s.time_ms, mistakes: s.mistakes, finishedAt: s.finished_at });
+const toScore = (s: ScoreRow): Score => ({ timeMs: s.time_ms, mistakes: s.mistakes, wrong: s.wrong, finishedAt: s.finished_at });
 
 /** Grille d'un jour déjà ouvert (jamais un jour futur à l'heure de Paris). */
 async function playablePuzzle(env: Env, day: unknown): Promise<PuzzleRow | "bad_day" | "not_yet" | "not_found"> {
@@ -51,7 +52,7 @@ export async function getPuzzle(env: Env, me: Player, day: string): Promise<Resp
   if (typeof p === "string") return puzzleError(env, p);
   const [attempt, score] = await env.DB.batch<{ started_at: number } | ScoreRow>([
     env.DB.prepare("SELECT started_at FROM attempts WHERE player_id = ? AND day = ?").bind(me.id, day),
-    env.DB.prepare("SELECT time_ms, mistakes, finished_at FROM scores WHERE player_id = ? AND day = ?").bind(me.id, day),
+    env.DB.prepare("SELECT time_ms, mistakes, wrong, finished_at FROM scores WHERE player_id = ? AND day = ?").bind(me.id, day),
   ]);
   const a = attempt!.results[0] as { started_at: number } | undefined;
   const s = score!.results[0] as ScoreRow | undefined;
@@ -62,6 +63,7 @@ export async function getPuzzle(env: Env, me: Player, day: string): Promise<Resp
     now: Date.now(),
     startedAt: a?.started_at ?? null,
     grid: a ? p.grid : null,
+    solution: a ? p.solution : null,
     score: s ? toScore(s) : null,
   } satisfies PuzzleInfo);
 }
@@ -73,7 +75,7 @@ export async function start(request: Request, env: Env, me: Player): Promise<Res
   const now = Date.now();
   await env.DB.prepare("INSERT OR IGNORE INTO attempts (player_id, day, started_at) VALUES (?, ?, ?)").bind(me.id, p.day, now).run();
   const a = await env.DB.prepare("SELECT started_at FROM attempts WHERE player_id = ? AND day = ?").bind(me.id, p.day).first<{ started_at: number }>();
-  return json(env, { day: p.day, difficulty: p.difficulty, now, startedAt: a!.started_at, grid: p.grid } satisfies StartResponse);
+  return json(env, { day: p.day, difficulty: p.difficulty, now, startedAt: a!.started_at, grid: p.grid, solution: p.solution } satisfies StartResponse);
 }
 
 export async function finish(request: Request, env: Env, me: Player): Promise<Response> {
@@ -81,9 +83,11 @@ export async function finish(request: Request, env: Env, me: Player): Promise<Re
   const p = await playablePuzzle(env, b.day);
   if (typeof p === "string") return puzzleError(env, p);
   if (!isGridString(b.grid)) return error(env, "bad_grid", 400);
-  const mistakes = Math.min(MAX_MISTAKES, Math.max(0, Math.floor(Number(b.mistakes) || 0)));
+  const count = (n: unknown) => Math.min(MAX_MISTAKES, Math.max(0, Math.floor(Number(n) || 0)));
+  const mistakes = count(b.mistakes);
+  const wrong = count(b.wrong);
 
-  const existing = await env.DB.prepare("SELECT time_ms, mistakes, finished_at FROM scores WHERE player_id = ? AND day = ?").bind(me.id, p.day).first<ScoreRow>();
+  const existing = await env.DB.prepare("SELECT time_ms, mistakes, wrong, finished_at FROM scores WHERE player_id = ? AND day = ?").bind(me.id, p.day).first<ScoreRow>();
   if (existing) return json(env, { score: toScore(existing), already: true } satisfies FinishResponse);
 
   const attempt = await env.DB.prepare("SELECT started_at FROM attempts WHERE player_id = ? AND day = ?").bind(me.id, p.day).first<{ started_at: number }>();
@@ -91,16 +95,16 @@ export async function finish(request: Request, env: Env, me: Player): Promise<Re
   if (b.grid !== p.solution) return error(env, "wrong", 422);
 
   const now = Date.now();
-  const timeMs = now - attempt.started_at + PENALTY_MS * mistakes;
-  const res = await env.DB.prepare("INSERT OR IGNORE INTO scores (player_id, day, time_ms, mistakes, finished_at) VALUES (?, ?, ?, ?, ?)")
-    .bind(me.id, p.day, timeMs, mistakes, now)
+  const timeMs = now - attempt.started_at + penaltyMs(mistakes, wrong);
+  const res = await env.DB.prepare("INSERT OR IGNORE INTO scores (player_id, day, time_ms, mistakes, wrong, finished_at) VALUES (?, ?, ?, ?, ?, ?)")
+    .bind(me.id, p.day, timeMs, mistakes, wrong, now)
     .run();
   if (res.meta.changes === 0) {
     // deux envois simultanés : le premier gagne
-    const s = await env.DB.prepare("SELECT time_ms, mistakes, finished_at FROM scores WHERE player_id = ? AND day = ?").bind(me.id, p.day).first<ScoreRow>();
+    const s = await env.DB.prepare("SELECT time_ms, mistakes, wrong, finished_at FROM scores WHERE player_id = ? AND day = ?").bind(me.id, p.day).first<ScoreRow>();
     return json(env, { score: toScore(s!), already: true } satisfies FinishResponse);
   }
-  return json(env, { score: { timeMs, mistakes, finishedAt: now }, already: false } satisfies FinishResponse);
+  return json(env, { score: { timeMs, mistakes, wrong, finishedAt: now }, already: false } satisfies FinishResponse);
 }
 
 /** Jours jouables (≤ aujourd'hui), du plus récent au plus ancien, avec mon état pour chacun. */

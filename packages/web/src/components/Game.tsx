@@ -1,36 +1,45 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { conflicts, digitCounts, gridToString, isComplete, type Score } from "@sudoku-race/shared";
+import { conflicts, digitCounts, gridToString, isComplete, penaltyMs, type Score } from "@sudoku-race/shared";
 import { useT } from "../i18n/index.js";
 import { api, ApiError } from "../lib/api.js";
 import { formatTime } from "../lib/format.js";
-import { initialState, reduce, type GameAction, type GameState } from "../lib/game.js";
-import { getCheck, getProgress, setCheck, setProgress } from "../lib/storage.js";
+import { initialState, reduce, wrongCells, type GameAction, type GameState } from "../lib/game.js";
+import { getBigNotes, getCheck, getProgress, setCheck, setProgress } from "../lib/storage.js";
+import { useIdentity } from "../hooks/useIdentity.js";
 import { SudokuGrid } from "./SudokuGrid.js";
-import { CheckIcon, EraseIcon, PencilIcon, UndoIcon } from "./Icons.js";
+import { CheckIcon, EraseIcon, PencilIcon, RedoIcon, UndoIcon } from "./Icons.js";
 
 interface Props {
   day: string;
   givens: string;
+  /** solution, pour la vérification automatique (null : seuls les doublons sont signalés) */
+  solution: string | null;
   startedAt: number;
   /** heure serveur − heure locale, pour un chrono juste même si l'horloge du téléphone dérive */
   offset: number;
   onSolved: (score: Score, values: number[]) => void;
 }
 
-export function Game({ day, givens, startedAt, offset, onSolved }: Props) {
+export function Game({ day, givens, solution, startedAt, offset, onSolved }: Props) {
   const t = useT();
+  const { profile } = useIdentity();
   const [check, setCheckState] = useState(getCheck);
+  const [bigNotes] = useState(() => getBigNotes(profile.pseudo));
   const [s, dispatch] = useReducer(
-    (st: GameState, a: GameAction) => reduce(givens, st, a),
+    (st: GameState, a: GameAction) => reduce(givens, solution, st, a),
     null,
     () => initialState(givens, getProgress(day)),
   );
 
+  // grille finie : l'historique ne sert plus, seuls les chiffres restent (affichage du résultat)
+  const complete = useMemo(() => isComplete(s.values), [s.values]);
   useEffect(() => {
-    setProgress(day, { values: s.values, notes: s.notes, mistakes: s.mistakes, flagged: s.flagged });
-  }, [day, s.values, s.notes, s.mistakes, s.flagged]);
+    const history = complete ? [] : s.history;
+    const future = complete ? [] : s.future;
+    setProgress(day, { values: s.values, notes: s.notes, mistakes: s.mistakes, wrong: s.wrong, flagged: s.flagged, history, future });
+  }, [day, complete, s.values, s.notes, s.mistakes, s.wrong, s.flagged, s.history, s.future]);
 
-  // vérification déjà active (réglage) : les doublons d'une partie reprise comptent
+  // vérification déjà active (réglage) : les erreurs d'une partie reprise comptent
   useEffect(() => {
     if (check) dispatch({ type: "enableCheck" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -44,7 +53,8 @@ export function Game({ day, givens, startedAt, offset, onSolved }: Props) {
   };
 
   const conflictSet = useMemo(() => conflicts(s.values), [s.values]);
-  const complete = useMemo(() => isComplete(s.values), [s.values]);
+  // vérification active : doublons et chiffres différents de la solution
+  const errorSet = useMemo(() => (check ? new Set([...conflictSet, ...wrongCells(givens, solution, s.values)]) : null), [check, conflictSet, givens, solution, s.values]);
   const full = s.values.every((v) => v > 0);
   const counts = useMemo(() => digitCounts(s.values), [s.values]);
 
@@ -56,7 +66,7 @@ export function Game({ day, givens, startedAt, offset, onSolved }: Props) {
     const st = latest.current;
     setSubmit("sending");
     try {
-      const res = await api.finish(day, gridToString(st.values), st.mistakes);
+      const res = await api.finish(day, gridToString(st.values), st.mistakes, st.wrong);
       onSolved(res.score, st.values);
     } catch (e) {
       setSubmit(e instanceof ApiError && e.code === "wrong" ? "wrong" : "failed");
@@ -73,9 +83,13 @@ export function Game({ day, givens, startedAt, offset, onSolved }: Props) {
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
       if (document.querySelector("dialog[open]") || complete) return;
       const key = e.key;
+      if ((e.ctrlKey || e.metaKey) && (key.toLowerCase() === "y" || (key.toLowerCase() === "z" && e.shiftKey))) {
+        e.preventDefault();
+        return dispatch({ type: "redo", check });
+      }
       if ((e.ctrlKey || e.metaKey) && key.toLowerCase() === "z") {
         e.preventDefault();
-        return dispatch({ type: "undo" });
+        return dispatch({ type: "undo", check });
       }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       // Chiffre tapé (pavé numérique, QWERTY, AZERTY avec Maj) → chiffre.
@@ -96,7 +110,8 @@ export function Game({ day, givens, startedAt, offset, onSolved }: Props) {
         return dispatch({ type: "erase" });
       }
       if (key === "n" || key === "N") return dispatch({ type: "toggleNotes" });
-      if (key === "u" || key === "U") return dispatch({ type: "undo" });
+      if (key === "u" || key === "U") return dispatch({ type: "undo", check });
+      if (key === "r" || key === "R") return dispatch({ type: "redo", check });
       if (key === "Escape") return dispatch({ type: "select", i: null });
     };
     document.addEventListener("keydown", onKey);
@@ -104,14 +119,15 @@ export function Game({ day, givens, startedAt, offset, onSolved }: Props) {
   }, [check, complete]);
 
   const done = complete || submit === "sending";
+  const errors = s.mistakes + s.wrong;
 
   return (
     <div className="game">
       <div className="game-bar">
         <Clock startedAt={startedAt} offset={offset} />
-        {check && s.mistakes > 0 && (
-          <span className="penalty" title={t.mistakes(s.mistakes)}>
-            {t.mistakes(s.mistakes)} · {t.penalty(s.mistakes)}
+        {check && errors > 0 && (
+          <span className="penalty" title={t.mistakes(errors)}>
+            {t.mistakes(errors)} · {t.penalty(penaltyMs(s.mistakes, s.wrong))}
           </span>
         )}
       </div>
@@ -121,15 +137,20 @@ export function Game({ day, givens, startedAt, offset, onSolved }: Props) {
         values={s.values}
         notes={s.notes}
         selected={done ? null : s.selected}
-        conflicts={check || (full && !complete) ? conflictSet : null}
+        conflicts={errorSet ?? (full && !complete ? conflictSet : null)}
         onSelect={done ? undefined : (i) => dispatch({ type: "select", i })}
         solved={complete}
+        bigNotes={bigNotes}
       />
 
       <div className="tools">
-        <button type="button" className="tool" onClick={() => dispatch({ type: "undo" })} disabled={done || s.history.length === 0}>
+        <button type="button" className="tool" onClick={() => dispatch({ type: "undo", check })} disabled={done || s.history.length === 0}>
           <UndoIcon />
           <span>{t.undo}</span>
+        </button>
+        <button type="button" className="tool" onClick={() => dispatch({ type: "redo", check })} disabled={done || s.future.length === 0}>
+          <RedoIcon />
+          <span>{t.redo}</span>
         </button>
         <button type="button" className="tool" onClick={() => dispatch({ type: "erase" })} disabled={done}>
           <EraseIcon />
